@@ -63,6 +63,8 @@ export function useDeepgramVoiceAgent({
   const updateInterviewId = (id: string) => {
     interviewIdRef.current = id;
     setInterviewId(id);
+    // Also update the interview context
+    interviewContextRef.current.interviewId = id;
   };
   
   const connectionRef = useRef<LiveClient | null>(null);
@@ -79,7 +81,8 @@ export function useDeepgramVoiceAgent({
     askedQuestionIds: [],
     userResponses: [],
     followUpCount: 0,
-    remainingTimeSeconds: interviewDuration * 60
+    remainingTimeSeconds: interviewDuration * 60,
+    interviewId: interviewIdRef.current || undefined
   });
 
   // Track current utterance
@@ -123,9 +126,8 @@ export function useDeepgramVoiceAgent({
         duration: 3000,
       });
     },
-    onMetricsUpdate: (metrics) => {
+    onMetricsUpdate: () => {
       // Optional: Can be used for real-time UI updates
-      console.log('Proctoring metrics:', metrics);
     },
     enableLogging: false,
     detectionInterval: 200

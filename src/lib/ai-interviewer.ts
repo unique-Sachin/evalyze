@@ -2,7 +2,13 @@ import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
-import { getRandomQuestion, getFollowUpQuestion, getInterviewGreeting } from './interview-questions';
+import { 
+  getRandomQuestion, 
+  getInterviewGreeting, 
+  getQuestionById,
+  evaluateAndStoreAnswer,
+  generateFinalAnalysisFromEvaluations
+} from './question-client';
 
 // Initialize Gemini LLM
 const model = new ChatGoogleGenerativeAI({
@@ -20,6 +26,7 @@ export interface InterviewContext {
   userResponses: string[];
   followUpCount?: number; // Track follow-ups for current question
   remainingTimeSeconds?: number; // Track remaining interview time
+  interviewId?: string; // Interview ID for storing evaluations
 }
 
 export interface InterviewerResponse {
@@ -39,8 +46,8 @@ export async function generateInterviewerResponse(
   try {
     // First interview message - start with greeting
     if (context.conversationHistory.length === 0) {
-      const greeting = getInterviewGreeting(context.roleId);
-      const firstQuestion = getRandomQuestion(context.roleId, context.askedQuestionIds);
+      const greeting = await getInterviewGreeting(context.roleId);
+      const firstQuestion = await getRandomQuestion(context.roleId, context.askedQuestionIds);
       
       if (!firstQuestion) {
         return {
@@ -58,8 +65,15 @@ export async function generateInterviewerResponse(
       };
     }
 
-    // If we have a latest response, analyze it and decide next action
-    if (latestUserResponse && context.currentQuestionId) {
+    // If we have a latest response, evaluate it and decide next action
+    if (latestUserResponse && context.currentQuestionId && context.interviewId) {
+      console.log('🔍 Processing answer:', {
+        hasResponse: !!latestUserResponse,
+        questionId: context.currentQuestionId,
+        interviewId: context.interviewId,
+        responsePreview: latestUserResponse.substring(0, 50)
+      });
+      
       // Check remaining time - if less than 2 minutes, gracefully conclude
       const remainingTimeMinutes = Math.floor((context.remainingTimeSeconds || 0) / 60);
       
@@ -71,32 +85,68 @@ export async function generateInterviewerResponse(
         };
       }
       
+      // Get current question details from DB
+      const currentQuestion = await getQuestionById(context.currentQuestionId);
+      
+      if (!currentQuestion) {
+        console.error('Current question not found in DB');
+        return {
+          message: "I'm having trouble processing that. Let's move on to the next question.",
+          shouldContinue: true,
+          isFollowUp: false
+        };
+      }
+
+      // Evaluate the answer and store it in database
+      const evaluation = await evaluateAndStoreAnswer(
+        context.interviewId,
+        context.currentQuestionId,
+        latestUserResponse,
+        currentQuestion.answer,
+        currentQuestion.question,
+        currentQuestion.expectedTopics,
+        context.followUpCount ? context.followUpCount > 0 : false
+      );
+
+      if (!evaluation) {
+        console.error('Failed to evaluate answer');
+        return {
+          message: "I'm having trouble evaluating that. Let's move on to the next question.",
+          shouldContinue: true,
+          isFollowUp: false
+        };
+      }
+
       // Initialize follow-up counter if not exists
       const currentFollowUpCount = context.followUpCount || 0;
       
       // Strict limit: Only allow 1 follow-up per question
-      // Also check if response is too short (less than 50 words)
+      // Also check if response is too short or score is low
       const responseWordCount = latestUserResponse.trim().split(/\s+/).length;
-      const shouldConsiderFollowUp = currentFollowUpCount < 1 && responseWordCount < 50;
+      const shouldConsiderFollowUp = 
+        currentFollowUpCount < 1 && 
+        (responseWordCount < 50 || evaluation.score < 6) &&
+        currentQuestion.followUps.length > 0;
       
-      // Default acknowledgment
-      let acknowledgment = "Thank you for that answer.";
+      // Generate appropriate acknowledgment based on score
+      let acknowledgment = generateAcknowledgment(evaluation.score);
       
       if (shouldConsiderFollowUp) {
-        // Use LLM to analyze the response and decide whether to ask follow-up
-        const decision = await decideNextAction(context, latestUserResponse);
+        // Use LLM to decide whether to ask follow-up based on evaluation
+        const decision = await decideNextAction(context, latestUserResponse, evaluation);
         acknowledgment = decision.acknowledgment;
         
-        if (decision.shouldAskFollowUp) {
-          // Get a follow-up question
-          const followUp = getFollowUpQuestion(context.currentQuestionId, context.roleId);
+        if (decision.shouldAskFollowUp && currentQuestion.followUps.length > 0) {
+          // Get a follow-up question from DB
+          const followUpIndex = Math.min(currentFollowUpCount, currentQuestion.followUps.length - 1);
+          const followUpData = currentQuestion.followUps[followUpIndex];
           
-          if (followUp) {
+          if (followUpData) {
             // Increment follow-up counter
             context.followUpCount = currentFollowUpCount + 1;
             
             return {
-              message: `${acknowledgment} ${followUp}`,
+              message: `${acknowledgment} ${followUpData.followUp}`,
               questionId: context.currentQuestionId,
               shouldContinue: true,
               isFollowUp: true
@@ -109,7 +159,7 @@ export async function generateInterviewerResponse(
       context.followUpCount = 0;
 
       // Move to next question
-      const nextQuestion = getRandomQuestion(context.roleId, context.askedQuestionIds);
+      const nextQuestion = await getRandomQuestion(context.roleId, context.askedQuestionIds);
       
       if (!nextQuestion) {
         return {
@@ -128,6 +178,13 @@ export async function generateInterviewerResponse(
     }
 
     // Fallback
+    console.log('⚠️ Falling back to generic response. Context:', {
+      hasResponse: !!latestUserResponse,
+      hasQuestionId: !!context.currentQuestionId,
+      hasInterviewId: !!context.interviewId,
+      conversationLength: context.conversationHistory.length
+    });
+    
     return {
       message: "I'm processing your response. Please continue.",
       shouldContinue: true,
@@ -145,31 +202,74 @@ export async function generateInterviewerResponse(
 }
 
 /**
+ * Generate a natural, encouraging acknowledgment based on answer score
+ */
+function generateAcknowledgment(score: number): string {
+  if (score >= 9) {
+    const excellent = [
+      "Excellent explanation!",
+      "Great answer!",
+      "That's a very comprehensive response.",
+      "Outstanding! You covered that really well."
+    ];
+    return excellent[Math.floor(Math.random() * excellent.length)];
+  } else if (score >= 7) {
+    const good = [
+      "Good answer!",
+      "Nice explanation.",
+      "That's a solid response.",
+      "Well explained."
+    ];
+    return good[Math.floor(Math.random() * good.length)];
+  } else if (score >= 5) {
+    const okay = [
+      "Thank you for that answer.",
+      "I see, thanks for sharing.",
+      "Okay, got it.",
+      "Thanks for explaining that."
+    ];
+    return okay[Math.floor(Math.random() * okay.length)];
+  } else {
+    const needs_improvement = [
+      "I see. Let me ask you a follow-up question.",
+      "Okay, let me help you explore this further.",
+      "I understand. Let's dig a bit deeper.",
+      "Thanks. Let me clarify with another question."
+    ];
+    return needs_improvement[Math.floor(Math.random() * needs_improvement.length)];
+  }
+}
+
+/**
  * Decide whether to ask follow-up or move to next question
  */
 async function decideNextAction(
   context: InterviewContext,
-  userResponse: string
+  userResponse: string,
+  evaluation?: { score: number; feedback: string }
 ): Promise<{ shouldAskFollowUp: boolean; acknowledgment: string }> {
   try {
-    const prompt = PromptTemplate.fromTemplate(`You are an experienced technical interviewer conducting an efficient interview.
+    const prompt = PromptTemplate.fromTemplate(`You are an experienced technical interviewer conducting a professional interview.
 
-The candidate just answered: "{userResponse}"
+The candidate just answered a question.
 
-DECISION CRITERIA FOR FOLLOW-UP:
-- Ask follow-up ONLY if the answer is extremely brief (less than 2-3 sentences) OR completely off-topic
-- If the candidate gave any reasonable attempt at answering, move on
-- If the answer shows ANY depth or examples, move on
-- You can only ask 2 follow-up per question maximum (currently at {followUpCount})
+EVALUATION SCORE: {score}/10
 
-Provide:
-1. should_ask_followup: true ONLY if answer is too brief or unclear (be strict!)
-2. acknowledgment: Brief, encouraging (1 sentence only)
+DECISION CRITERIA:
+- Ask follow-up ONLY if the score is below 6/10 AND we haven't asked a follow-up yet
+- If score >= 6, move on to next question
+- Currently at {followUpCount} follow-ups (max 1 allowed)
+
+IMPORTANT FOR ACKNOWLEDGMENT:
+- Keep it brief, natural, and encouraging (max 5-7 words)
+- Don't reveal the score or provide detailed critique
+- Don't sound robotic or overly formal
+- Examples: "Got it, thanks!", "Interesting approach.", "I see, thanks for that."
 
 Respond ONLY in this JSON format:
 {{
   "should_ask_followup": false,
-  "acknowledgment": "Your acknowledgment here"
+  "acknowledgment": "Your brief acknowledgment here"
 }}
 `);
 
@@ -180,7 +280,7 @@ Respond ONLY in this JSON format:
     ]);
 
     const result = await chain.invoke({ 
-      userResponse, 
+      score: evaluation?.score || 5,
       followUpCount: context.followUpCount || 0,
     });
     console.log('LLM decision result:', result);
@@ -189,23 +289,50 @@ Respond ONLY in this JSON format:
 
     return {
       shouldAskFollowUp: parsed.should_ask_followup === true,
-      acknowledgment: parsed.acknowledgment || "Thank you for that explanation."
+      acknowledgment: parsed.acknowledgment || generateAcknowledgment(evaluation?.score || 5)
     };
 
   } catch (error) {
     console.error('Failed to decide next action:', error);
-    // Default behavior: DON'T ask follow-up, move to next question
+    // Default behavior: DON'T ask follow-up if score is decent, move to next question
     return {
-      shouldAskFollowUp: false,
-      acknowledgment: "Thank you for that answer."
+      shouldAskFollowUp: evaluation ? evaluation.score < 6 : false,
+      acknowledgment: generateAcknowledgment(evaluation?.score || 5)
     };
   }
 }
 
 /**
  * Analyze the complete interview performance
+ * Now uses stored evaluations instead of analyzing conversation history
  */
 export async function analyzeInterviewPerformance(
+  context: InterviewContext
+): Promise<InterviewAnalysis> {
+  try {
+    // If we have an interview ID, use evaluation-based analysis
+    if (context.interviewId) {
+      const analysis = await generateFinalAnalysisFromEvaluations(context.interviewId);
+      
+      if (analysis) {
+        return analysis as InterviewAnalysis;
+      }
+    }
+
+    // Fallback to old method if no interview ID or no evaluations
+    return await analyzeLegacyConversationHistory(context);
+
+  } catch (error) {
+    console.error('Failed to analyze interview:', error);
+    return createFallbackAnalysis();
+  }
+}
+
+/**
+ * Legacy method: Analyze from conversation history
+ * Used as fallback when evaluation-based analysis is not available
+ */
+async function analyzeLegacyConversationHistory(
   context: InterviewContext
 ): Promise<InterviewAnalysis> {
   try {
@@ -271,7 +398,7 @@ Respond in this EXACT JSON format:
     };
 
   } catch (error) {
-    console.error('Failed to analyze interview:', error);
+    console.error('Failed to analyze conversation history:', error);
     return createFallbackAnalysis();
   }
 }

@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { useDeepgramVoiceAgent, type TranscriptMessage, type InterviewAnalysis } from '@/src/hooks/useDeepgramVoiceAgent';
 import { toast } from 'sonner';
-import { InterviewAnalysisDialog } from '@/components/InterviewAnalysisDialog';
+import { InterviewCompletionDialog } from '@/components/InterviewCompletionDialog';
 import { LiveTranscript } from '../_components/LiveTranscript';
 import { InterviewNavbar } from '../_components/InterviewNavbar';
 import { ProctoringVideoPreview } from '@/components/ProctoringVideoPreview';
@@ -25,8 +25,7 @@ export default function GenAIDeveloperInterview() {
   const router = useRouter();
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [interviewAnalysis, setInterviewAnalysis] = useState<InterviewAnalysis | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirmation, setShowEndConfirmation] = useState(false);
   
   const {
@@ -58,9 +57,8 @@ export default function GenAIDeveloperInterview() {
     },
     onInterviewComplete: (analysis: InterviewAnalysis) => {
       console.log('Interview completed with analysis:', analysis);
-      setInterviewAnalysis(analysis);
-      setShowAnalysis(true);
-      toast.success('Interview completed! Check out your analysis.');
+      setShowCompletion(true);
+      toast.success('Interview completed! Choose your next step.');
     },
     onTimeWarning: (minutes: number) => {
       if (minutes === 5) {
@@ -94,17 +92,15 @@ export default function GenAIDeveloperInterview() {
   };
 
   const confirmEndInterview = () => {
-    const currentId = interviewId;
     stopConnection();
     setShowEndConfirmation(false);
+    setShowCompletion(true);
     toast.info('Interview ended');
-    
-    // Redirect to interview detail page after a short delay
-    if (currentId) {
-      setTimeout(() => {
-        router.push(`/interview/${currentId}`);
-      }, 1000);
-    }
+  };
+
+  const handleNewInterview = () => {
+    // Reset all state and reload page to start fresh
+    window.location.reload();
   };
 
   const cancelEndInterview = () => {
@@ -284,11 +280,12 @@ export default function GenAIDeveloperInterview() {
         </div>
       </div>
       
-      {/* Interview Analysis Dialog */}
-      <InterviewAnalysisDialog 
-        open={showAnalysis}
-        onOpenChange={setShowAnalysis}
-        analysis={interviewAnalysis}
+      {/* Interview Completion Dialog */}
+      <InterviewCompletionDialog 
+        open={showCompletion}
+        onOpenChange={setShowCompletion}
+        interviewId={interviewId}
+        onNewInterview={handleNewInterview}
       />
 
       {/* End Interview Confirmation Dialog */}

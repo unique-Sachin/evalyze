@@ -20,7 +20,7 @@ async function deleteAllInterviews() {
     try {
       const snapshotsDeleted = await prisma.$executeRaw`DELETE FROM attention_snapshots`;
       console.log(`✅ Deleted ${snapshotsDeleted} attention snapshots`);
-    } catch (e) {
+    } catch {
       console.log('⚠️  No attention_snapshots table found (skipping)');
     }
 
@@ -28,7 +28,7 @@ async function deleteAllInterviews() {
     try {
       const eventsDeleted = await prisma.$executeRaw`DELETE FROM proctoring_events`;
       console.log(`✅ Deleted ${eventsDeleted} proctoring events`);
-    } catch (e) {
+    } catch {
       console.log('⚠️  No proctoring_events table found (skipping)');
     }
 
@@ -36,7 +36,7 @@ async function deleteAllInterviews() {
     try {
       const sessionsDeleted = await prisma.$executeRaw`DELETE FROM proctoring_sessions`;
       console.log(`✅ Deleted ${sessionsDeleted} proctoring sessions`);
-    } catch (e) {
+    } catch {
       console.log('⚠️  No proctoring_sessions table found (skipping)');
     }
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Script from "next/script";
 import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,17 +18,15 @@ import { toast } from "sonner";
 import { Whiteboard, type WhiteboardRef } from "./_components/Whiteboard";
 import { InterviewNavbar } from "../_components/InterviewNavbar";
 import { LiveTranscript } from "../_components/LiveTranscript";
-import { InterviewAnalysisDialog } from "@/components/InterviewAnalysisDialog";
+import { InterviewCompletionDialog } from "@/components/InterviewCompletionDialog";
 import { useDeepgramVoiceAgent, type InterviewAnalysis } from "@/src/hooks/useDeepgramVoiceAgent";
 import { ProctoringVideoPreview } from "@/components/ProctoringVideoPreview";
 
 export default function SystemDesignInterviewPage() {
-  const router = useRouter();
   const whiteboardRef = useRef<WhiteboardRef>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [interviewAnalysis, setInterviewAnalysis] = useState<InterviewAnalysis | null>(null);
-  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirmation, setShowEndConfirmation] = useState(false);
 
   const {
@@ -61,9 +58,8 @@ export default function SystemDesignInterviewPage() {
     },
     onInterviewComplete: (analysis: InterviewAnalysis) => {
       console.log('Interview completed with analysis:', analysis);
-      setInterviewAnalysis(analysis);
-      setShowAnalysis(true);
-      toast.success('Interview completed! Check out your analysis.');
+      setShowCompletion(true);
+      toast.success('Interview completed! Choose your next step.');
     },
     onTimeWarning: (minutes: number) => {
       if (minutes === 5) {
@@ -97,17 +93,15 @@ export default function SystemDesignInterviewPage() {
   };
 
   const confirmEndInterview = () => {
-    const currentId = interviewId;
     stopConnection();
     setShowEndConfirmation(false);
+    setShowCompletion(true);
     toast.info('Interview ended');
-    
-    // Redirect to interview detail page after a short delay
-    if (currentId) {
-      setTimeout(() => {
-        router.push(`/interview/${currentId}`);
-      }, 1000);
-    }
+  };
+
+  const handleNewInterview = () => {
+    // Reset all state and reload page to start fresh
+    window.location.reload();
   };
 
   const cancelEndInterview = () => {
@@ -314,11 +308,12 @@ export default function SystemDesignInterviewPage() {
         </div>
       </div>
 
-      {/* Interview Analysis Dialog */}
-      <InterviewAnalysisDialog 
-        open={showAnalysis}
-        onOpenChange={setShowAnalysis}
-        analysis={interviewAnalysis}
+      {/* Interview Completion Dialog */}
+      <InterviewCompletionDialog 
+        open={showCompletion}
+        onOpenChange={setShowCompletion}
+        interviewId={interviewId}
+        onNewInterview={handleNewInterview}
       />
 
       {/* End Interview Confirmation Dialog */}

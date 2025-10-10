@@ -93,6 +93,7 @@ model Interview {
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages          Message[]
   proctoringSession ProctoringSession?
+  answerEvaluations AnswerEvaluation[]
 
   @@index([userId])
   @@index([roleId])
@@ -258,8 +259,8 @@ model InterviewRole {
   topics      String[] // Array of topic strings
   isActive    Boolean  @default(true)
 
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
   questions InterviewQuestion[]
 
   @@map("interview_roles")
@@ -267,24 +268,24 @@ model InterviewRole {
 
 // Interview Questions Bank
 model InterviewQuestion {
-  id          String               @id @default(cuid())
-  roleId      String
-  question    String               @db.Text
-  answer      String?              @db.Text // Correct/Expected answer
-  category    String // 'Fundamentals', 'System Design', etc.
-  difficulty  QuestionDifficulty
-  order       Int                  @default(0) // Order in which questions appear
-  isActive    Boolean              @default(true)
+  id         String             @id @default(cuid())
+  roleId     String
+  question   String             @db.Text
+  answer     String?            @db.Text // Correct/Expected answer
+  category   String // 'Fundamentals', 'System Design', etc.
+  difficulty QuestionDifficulty
+  order      Int                @default(0) // Order in which questions appear
+  isActive   Boolean            @default(true)
 
   // Metadata
   expectedTopics String[] // Topics that should be covered in the answer
   timeEstimate   Int?     @default(5) // Estimated time in minutes
 
-  createdAt DateTime               @default(now())
-  updatedAt DateTime               @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  role      InterviewRole          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role      InterviewRole      @relation(fields: [roleId], references: [id], onDelete: Cascade)
   followUps QuestionFollowUp[]
 
   @@index([roleId])
@@ -296,11 +297,11 @@ model InterviewQuestion {
 
 // Follow-up Questions
 model QuestionFollowUp {
-  id         String @id @default(cuid())
+  id         String  @id @default(cuid())
   questionId String
-  followUp   String @db.Text // The follow-up question text
+  followUp   String  @db.Text // The follow-up question text
   answer     String? @db.Text // Expected answer for the follow-up
-  order      Int    @default(0) // Order of follow-ups
+  order      Int     @default(0) // Order of follow-ups
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -316,4 +317,40 @@ enum QuestionDifficulty {
   EASY
   MEDIUM
   HARD
+}
+
+// Answer Evaluation - stores evaluation for each answer during interview
+model AnswerEvaluation {
+  id          String  @id @default(cuid())
+  interviewId String
+  questionId  String
+  followUpId  String? // If this is a follow-up answer evaluation
+
+  // Answer details
+  candidateAnswer String  @db.Text
+  expectedAnswer  String? @db.Text
+  isFollowUp      Boolean @default(false)
+
+  // Evaluation scores
+  score        Float // Score out of 10
+  relevance    Float // How relevant is the answer
+  accuracy     Float // How accurate is the answer
+  completeness Float // How complete is the answer
+
+  // AI Feedback
+  feedback      String   @db.Text
+  strengths     String[] // What was good
+  improvements  String[] // What could be improved
+  missingTopics String[] // Expected topics that were not covered
+
+  // Timestamps
+  answeredAt  DateTime @default(now())
+  evaluatedAt DateTime @default(now())
+
+  // Relations
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+  @@index([questionId])
+  @@map("answer_evaluations")
 }

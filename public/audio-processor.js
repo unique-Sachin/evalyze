@@ -12,7 +12,7 @@ class AudioStreamProcessor extends AudioWorkletProcessor {
     };
   }
 
-  process(inputs, _outputs, _parameters) {
+  process(inputs) {
     const input = inputs[0];
     
     // Only process if we have input and should send
