@@ -1,0 +1,319 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model with authentication
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String? // hashed password - optional for OAuth users
+  emailVerified DateTime?
+  image         String?
+  role          UserRole  @default(CANDIDATE) // User role: ADMIN or CANDIDATE
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  interviews Interview[]
+  accounts   Account[]
+  sessions   Session[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  CANDIDATE
+}
+
+// NextAuth Account model (for OAuth providers like Google)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// NextAuth Session model
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Interview Session model - stores each interview attempt
+model Interview {
+  id              String          @id @default(cuid())
+  userId          String
+  roleId          String // 'genai-developer', 'system-design', etc.
+  status          InterviewStatus @default(IN_PROGRESS)
+  startedAt       DateTime        @default(now())
+  completedAt     DateTime?
+  durationMinutes Int?
+
+  // Interview metadata
+  totalQuestions Int      @default(0)
+  questionsAsked String[] // Array of question IDs asked
+
+  // Analysis results (stored as JSON)
+  analysisScores Json? // { technical: 8, communication: 9, problemSolving: 7, experience: 8 }
+  strengths      String[] // Array of strength descriptions
+  improvements   String[] // Areas for improvement
+  insights       String[] // Key insights from the interview
+  recommendation String? // 'strong_yes', 'yes', 'maybe', 'no', 'strong_no'
+  overallScore   Float? // Overall score out of 10
+
+  // Relations
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          Message[]
+  proctoringSession ProctoringSession?
+
+  @@index([userId])
+  @@index([roleId])
+  @@index([status])
+  @@index([startedAt])
+  @@map("interviews")
+}
+
+enum InterviewStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+  FLAGGED
+}
+
+// Individual message in the conversation
+model Message {
+  id          String      @id @default(cuid())
+  interviewId String
+  role        MessageRole
+  content     String      @db.Text
+  timestamp   DateTime    @default(now())
+
+  // Optional metadata
+  isFollowUp Boolean @default(false)
+  questionId String? // ID of the question being asked/answered
+
+  // Relations
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@index([interviewId])
+  @@index([role])
+  @@index([timestamp])
+  @@map("messages")
+}
+
+enum MessageRole {
+  USER
+  AGENT
+}
+
+// Verification tokens for email verification
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// Proctoring Session - stores monitoring data for each interview
+model ProctoringSession {
+  id          String @id @default(cuid())
+  interviewId String @unique
+
+  // Session metadata
+  startedAt            DateTime
+  endedAt              DateTime?
+  totalDurationSeconds Int?
+
+  // Aggregate statistics
+  totalViolations       Int @default(0)
+  noFaceDetectedSeconds Int @default(0)
+  multipleFacesCount    Int @default(0)
+  lookingAwayCount      Int @default(0)
+  tabSwitchCount        Int @default(0)
+
+  // Calculated scores
+  averageAttentionScore Float     @default(100)
+  integrityScore        Int       @default(100)
+  riskLevel             RiskLevel @default(VERY_LOW)
+
+  // Pattern analysis (stored as JSON)
+  suspiciousPatterns Json?
+
+  // Relations
+  interview Interview           @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  events    ProctoringEvent[]
+  snapshots AttentionSnapshot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([interviewId])
+  @@map("proctoring_sessions")
+}
+
+// Individual proctoring events (violations only)
+model ProctoringEvent {
+  id        String @id @default(cuid())
+  sessionId String
+
+  // Event details
+  type       String // 'no_face', 'multiple_faces', 'looking_away', etc.
+  timestamp  DateTime
+  confidence Float
+  severity   Severity
+  message    String
+
+  // Contextual data (stored as JSON)
+  metadata Json? // iris deviation, head pose, etc.
+
+  // Association with interview questions
+  questionIndex Int?
+
+  // Relations
+  session ProctoringSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, timestamp])
+  @@index([type])
+  @@map("proctoring_events")
+}
+
+// Attention snapshots (time-series data for timeline graphs)
+model AttentionSnapshot {
+  id        String @id @default(cuid())
+  sessionId String
+
+  timestamp      DateTime
+  secondsElapsed Int // 0, 10, 20, 30...
+
+  // Metrics at this point in time
+  faceDetected   Boolean
+  faceCount      Int
+  attentionScore Int // 0-100
+  gazeDirection  String
+  headYaw        Float
+  headPitch      Float
+  irisDeviation  Float   @default(0)
+
+  // Relations
+  session ProctoringSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, timestamp])
+  @@map("attention_snapshots")
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RiskLevel {
+  VERY_LOW
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// Interview Role Configuration
+model InterviewRole {
+  id          String   @id // 'genai-developer', 'system-design', etc.
+  title       String
+  description String   @db.Text
+  duration    String // '45-60 min'
+  difficulty  String // 'Intermediate', 'Advanced', etc.
+  topics      String[] // Array of topic strings
+  isActive    Boolean  @default(true)
+
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  questions InterviewQuestion[]
+
+  @@map("interview_roles")
+}
+
+// Interview Questions Bank
+model InterviewQuestion {
+  id          String               @id @default(cuid())
+  roleId      String
+  question    String               @db.Text
+  answer      String?              @db.Text // Correct/Expected answer
+  category    String // 'Fundamentals', 'System Design', etc.
+  difficulty  QuestionDifficulty
+  order       Int                  @default(0) // Order in which questions appear
+  isActive    Boolean              @default(true)
+
+  // Metadata
+  expectedTopics String[] // Topics that should be covered in the answer
+  timeEstimate   Int?     @default(5) // Estimated time in minutes
+
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+
+  // Relations
+  role      InterviewRole          @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  followUps QuestionFollowUp[]
+
+  @@index([roleId])
+  @@index([category])
+  @@index([difficulty])
+  @@index([isActive])
+  @@map("interview_questions")
+}
+
+// Follow-up Questions
+model QuestionFollowUp {
+  id         String @id @default(cuid())
+  questionId String
+  followUp   String @db.Text // The follow-up question text
+  answer     String? @db.Text // Expected answer for the follow-up
+  order      Int    @default(0) // Order of follow-ups
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  question InterviewQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_follow_ups")
+}
+
+enum QuestionDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
