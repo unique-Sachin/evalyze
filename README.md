@@ -9,6 +9,25 @@
 
 Evalyze is a cutting-edge AI interview platform that conducts real-time voice-based technical interviews with intelligent proctoring, automatic evaluation, and detailed performance analytics. Built with the latest technologies, it provides a seamless experience for both candidates and recruiters.
 
+
+---
+
+## 📐 System Design Documentation
+
+Comprehensive architectural diagrams and design documents for Evalyze:
+
+### Core Architecture
+- 🏗️ **[High-Level Architecture Diagram](https://app.eraser.io/workspace/FYNHNrIx4bdFLGrPWATp?origin=share&elements=8rkn1vj_veMOCH9cRv1fUQ)** - Overall system architecture and component interactions
+- 🔄 **[Interview Flow Sequence Diagram](https://app.eraser.io/workspace/ekq2vQMU3EqmCQBvS0Jy?origin=share&elements=moPU9i4BosjUDo5eWjD81g)** - Step-by-step interview process flow
+
+### Data & Structure
+- 💾 **[Database Schema (Entity Relationship)](https://app.eraser.io/workspace/GmIbzxxGpbyqPdrrKnwu?origin=share&elements=QDELuQWm9TbW8qgNXGFK4A)** - Complete database design and relationships
+- 🧩 **[Component Architecture](https://app.eraser.io/workspace/2QpNUgbH5zs3zZT2I7ba?origin=share)** - Frontend and backend component structure
+
+### Integration & Security
+- 📊 **[Data Flow Architecture](https://app.eraser.io/workspace/eopfgdLDOoFBBKGGd7FG?origin=share)** - Data movement across the system
+- 🔐 **[Security & Authentication Flow](https://app.eraser.io/workspace/kbmUgkx71p4OFScSnS29?origin=share)** - Authentication and authorization design
+
 ---
 
 ## ✨ Features
