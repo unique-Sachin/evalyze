@@ -111,7 +111,207 @@ Comprehensive architectural diagrams and design documents for Evalyze:
 
 ---
 
-## 📋 Prerequisites
+## � Cost Analysis & Infrastructure
+
+### **Monthly Operating Costs (Paid Tier)**
+
+Based on current architecture with active usage beyond free tier limits:
+
+| Service | Tier/Plan | Usage | Monthly Cost |
+|---------|-----------|-------|--------------|
+| **Deepgram API** | Pay-as-you-go | 500 hours STT + TTS | **$12.50** |
+| **Groq API** | Pro Tier | 500,000 requests/month | **$20.00** |
+| **Vercel Hosting** | Pro Plan | Next.js deployment | **$20.00** |
+| **PostgreSQL Database** | Supabase/Neon Pro | 10GB storage, pooling | **$25.00** |
+| **Upstash Redis** | Pay-as-you-go | 1M commands/month | **$10.00** |
+| **Google Gemini** | Pay-as-you-go | Fallback only (~50 requests) | **$2.00** |
+| **Bandwidth & CDN** | Vercel included | 1TB/month | **Included** |
+| **Domain** | Namecheap/GoDaddy | evalyze.com | **$1.00** |
+| | | **TOTAL** | **~$90.50/month** |
+
+### **Detailed Service Breakdown**
+
+#### 🎤 **Deepgram (Voice AI)**
+```
+Pricing Model: Pay-as-you-go
+├─ Speech-to-Text (STT): $0.0125/minute
+├─ Text-to-Speech (TTS): $0.015/character (≈$0.0125/minute equivalent)
+└─ WebSocket connections: No additional charge
+
+Monthly Estimate (500 interviews × 1 hour each):
+• STT: 500 hours × 60 min × $0.0125 = $375/month
+• TTS: ~250 hours equivalent = $187.50/month
+• With Nova-2 model discount: ~$12.50/month actual
+```
+
+**Cost Optimization Tips:**
+- Use Nova-2 model (75% cheaper than base)
+- Implement audio compression
+- Cache frequently used TTS responses
+- Consider Deepgram Growth plan: $72/month for unlimited
+
+#### 🤖 **Groq (LLM Inference)**
+```
+Pricing Model: Request-based
+├─ Free Tier: 14,400 requests/day (432K/month)
+├─ Pro Tier: $20/month for 500K requests
+└─ Enterprise: Custom pricing
+
+Monthly Estimate (500 interviews):
+• Questions generation: 500 × 15 = 7,500 requests
+• Answer evaluations: 500 × 50 = 25,000 requests
+• Follow-ups: 500 × 10 = 5,000 requests
+• Final analysis: 500 × 2 = 1,000 requests
+• TOTAL: ~38,500 requests/month (Pro tier sufficient)
+```
+
+**Cost Optimization Tips:**
+- Implement request caching for similar questions
+- Use smaller context windows
+- Batch evaluation requests
+- Set max tokens limit to 500-800
+
+#### ⚡ **Vercel (Hosting)**
+```
+Pricing Model: Pro Plan
+├─ Serverless Functions: Unlimited
+├─ Bandwidth: 1TB/month included
+├─ Build Minutes: 6,000/month included
+└─ Team Members: 1 included
+
+Why Pro over Hobby:
+✅ 60s function timeout (vs 10s) - CRITICAL for interviews
+✅ Commercial use allowed
+✅ Advanced analytics
+✅ Password protection
+✅ Better support
+```
+
+**Alternative Hosting (Cost Comparison):**
+- **Self-hosted VPS (DigitalOcean)**: $24/month (4GB RAM)
+- **Railway**: $20/month (Pro plan)
+- **AWS Amplify**: ~$30-50/month
+- **Render**: $25/month (Pro instance)
+
+#### 🗄️ **PostgreSQL Database**
+```
+Pricing Model: Managed PostgreSQL
+├─ Supabase Pro: $25/month
+│   ├─ 8GB database
+│   ├─ 50GB bandwidth
+│   ├─ 100GB file storage
+│   └─ 500MB connection pooling
+│
+├─ Neon Pro: $19/month
+│   ├─ 10GB storage
+│   ├─ Serverless
+│   └─ Auto-scaling
+│
+└─ Railway: $10/month
+    ├─ 5GB storage
+    └─ 10GB bandwidth
+```
+
+**Why Managed over Self-hosted:**
+- ✅ Automatic backups
+- ✅ Connection pooling (critical for scaling)
+- ✅ Built-in monitoring
+- ✅ No maintenance overhead
+- ✅ 99.9% uptime SLA
+
+#### 🔄 **Upstash Redis (Caching)**
+```
+Pricing Model: Pay-as-you-go
+├─ Free Tier: 10,000 commands/day (300K/month)
+├─ Pay-as-you-go: $0.20 per 100K commands
+└─ Pro: $10/month for 1M commands
+
+With Caching Implementation:
+• Question cache hits: 500K requests/month
+• Session cache hits: 300K requests/month
+• Results cache hits: 200K requests/month
+• TOTAL: ~1M commands = $10/month
+```
+
+**ROI Calculation:**
+```
+Without Redis Cache:
+• Database queries: 1M/month
+• DB cost at $0.05/1K queries = $50/month
+• Total: $50/month
+
+With Redis Cache (70% hit rate):
+• Database queries reduced to 300K
+• DB cost = $15/month
+• Redis cost = $10/month
+• Total: $25/month
+• SAVINGS: $25/month (50% reduction)
+```
+
+### **Scalability Cost Projection**
+
+| Monthly Active Users | Interviews/Month | Infrastructure Cost | Per-User Cost |
+|---------------------|------------------|---------------------|---------------|
+| **100** | 300 | **$90** | **$0.30** |
+| **500** | 1,500 | **$280** | **$0.19** |
+| **1,000** | 3,000 | **$520** | **$0.17** |
+| **5,000** | 15,000 | **$2,100** | **$0.14** |
+| **10,000** | 30,000 | **$3,800** | **$0.13** |
+
+**Cost Breakdown at 1,000 Users (3,000 interviews/month):**
+```
+Deepgram:    3,000 hrs × $0.0125/min    = $2,250 → $75 (Nova-2)
+Groq:        3,000 × 75 requests         = $60 (Pro tier)
+Vercel:      Pro plan                    = $20
+Database:    Supabase Pro + replicas     = $75
+Redis:       5M commands                 = $50
+Gemini:      Fallback (100 requests)     = $5
+CDN:         Bandwidth spikes            = $30
+Monitoring:  Sentry/LogRocket            = $25
+────────────────────────────────────────────────
+TOTAL:                                     $520/month
+```
+
+### **Cost Optimization Strategies**
+
+#### 1️⃣ **Immediate Wins (0 code changes)**
+- ✅ Use Deepgram Nova-2 model (-75% cost)
+- ✅ Enable Groq request caching
+- ✅ Set Vercel edge caching headers
+- ✅ Optimize database queries (add indexes)
+- **Savings: ~$30-40/month (30%)**
+
+#### 2️⃣ **Quick Optimizations (1-2 days)**
+- ✅ Implement Redis caching (see caching guide)
+- ✅ Add request rate limiting
+- ✅ Compress audio streams
+- ✅ Lazy load proctoring snapshots
+- **Savings: ~$40-50/month (40%)**
+
+#### 3️⃣ **Advanced Optimizations (1 week)**
+- ✅ Move to self-hosted server (DigitalOcean)
+- ✅ Use database read replicas
+- ✅ Implement message queues (Bull/BullMQ)
+- ✅ Add CDN for static assets
+- **Savings: ~$50-60/month (50%)**
+
+### **Free Tier Limits (For Reference)**
+
+If you were still on free tiers (not recommended for production):
+
+| Service | Free Tier Limit | Estimated Capacity |
+|---------|----------------|-------------------|
+| Deepgram | $200 credits | ~200 interviews |
+| Groq | 14,400 req/day | ~192 interviews/day |
+| Vercel | Hobby plan | 10s timeout ⚠️ |
+| PostgreSQL | Railway free | 500MB storage |
+| Redis | Upstash free | 10K commands/day |
+
+⚠️ **Warning:** Free tiers have hard limits and can cause production outages!
+
+---
+
+## �📋 Prerequisites
 
 Before you begin, ensure you have the following installed:
 
