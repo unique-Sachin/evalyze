@@ -1,15 +1,15 @@
 import { prisma } from './prisma';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatGroq } from '@langchain/groq';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
 
-// Initialize Gemini LLM for evaluation
-const evaluationModel = new ChatGoogleGenerativeAI({
-  model: 'gemini-2.0-flash',
+// Initialize Groq LLM for evaluation (Fast & Free!)
+const evaluationModel = new ChatGroq({
+  model: 'llama-3.1-8b-instant', // Fast Llama 3.1 model
+  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY,
   temperature: 0.1,
-  maxOutputTokens: 800,
-  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
+  maxTokens: 800,
 });
 
 export interface AnswerEvaluationResult {
@@ -85,8 +85,12 @@ Respond in this EXACT JSON format:
       isFollowUp: isFollowUp ? 'Yes' : 'No'
     });
 
+
+
     const cleaned = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const evaluation = JSON.parse(cleaned);
+
+    console.log('Raw evaluation result:', evaluation);
 
     return {
       score: ensureValidScore(evaluation.score),

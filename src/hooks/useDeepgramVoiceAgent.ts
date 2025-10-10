@@ -212,12 +212,6 @@ export function useDeepgramVoiceAgent({
         value: status === 'listening'
       });
     }
-    
-    if (status === 'listening') {
-      console.log('🎤 Microphone ENABLED - You can speak now');
-    } else {
-      console.log('🔇 Microphone MUTED - AI is', status);
-    }
   };
 
   const addTranscriptMessage = async (message: TranscriptMessage) => {
@@ -232,7 +226,6 @@ export function useDeepgramVoiceAgent({
     
     // Save message to database if interview ID exists
     const currentInterviewId = interviewIdRef.current;
-    console.log('Saving message to database if interviewId exists:', { currentInterviewId });
     if (currentInterviewId) {
       try {
         const response = await fetch(`/api/interviews/${currentInterviewId}/messages`, {
@@ -415,7 +408,7 @@ export function useDeepgramVoiceAgent({
         sample_rate: 24000,
         channels: 1,
         interim_results: true,
-        utterance_end_ms: 2500, // 2.5 second pause detection
+        utterance_end_ms: 5000, // 5 second pause detection
         vad_events: true
       });
 
@@ -487,7 +480,6 @@ export function useDeepgramVoiceAgent({
 
       // Handle speech events
       connection.on('SpeechStarted', () => {
-        console.log('User started speaking');
         updateStatus('listening');
         // Don't reset here - wait for UtteranceEnd
         // This ensures we capture the complete utterance

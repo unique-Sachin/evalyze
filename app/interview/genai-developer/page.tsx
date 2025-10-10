@@ -20,6 +20,9 @@ import { InterviewCompletionDialog } from '@/components/InterviewCompletionDialo
 import { LiveTranscript } from '../_components/LiveTranscript';
 import { InterviewNavbar } from '../_components/InterviewNavbar';
 import { ProctoringVideoPreview } from '@/components/ProctoringVideoPreview';
+import { ProctoringAcknowledgementDialog } from '@/components/ProctoringAcknowledgementDialog';
+import { FullscreenExitWarning } from '@/components/FullscreenExitWarning';
+import { useFullscreenInterview } from '@/src/hooks/useFullscreenInterview';
 
 export default function GenAIDeveloperInterview() {
   const router = useRouter();
@@ -27,6 +30,8 @@ export default function GenAIDeveloperInterview() {
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [showCompletion, setShowCompletion] = useState(false);
   const [showEndConfirmation, setShowEndConfirmation] = useState(false);
+  const [showProctoringAcknowledgement, setShowProctoringAcknowledgement] = useState(false);
+  const [hasAcknowledged, setHasAcknowledged] = useState(false);
   
   const {
     isConnected,
@@ -77,7 +82,57 @@ export default function GenAIDeveloperInterview() {
     }
   });
 
+  // Fullscreen management
+  const {
+    showExitWarning,
+    exitAttempts,
+    enterFullscreen,
+    handleContinueInterview,
+    handleEndInterview: handleFullscreenEndInterview,
+  } = useFullscreenInterview({
+    interviewId,
+    isInterviewActive: isConnected,
+    onForceExit: () => {
+      stopConnection();
+      setShowCompletion(true);
+    }
+  });
+
+  const handleAcceptProctoring = async () => {
+    setShowProctoringAcknowledgement(false);
+    
+    // Enter fullscreen mode
+    const success = await enterFullscreen();
+    if (success) {
+      setHasAcknowledged(true);
+      toast.success('Fullscreen enabled. Starting interview...');
+      
+      // Automatically start the interview after accepting
+      try {
+        await startConnection();
+        toast.success('Voice interview started!');
+      } catch (error) {
+        console.error('Failed to start interview:', error);
+        toast.error('Failed to start interview. Please check your microphone permissions.');
+      }
+    } else {
+      toast.error('Failed to enter fullscreen. Please allow fullscreen access.');
+      setShowProctoringAcknowledgement(true);
+    }
+  };
+
+  const handleDeclineProctoring = () => {
+    toast.error('You must accept the proctoring terms to continue.');
+    router.push('/dashboard');
+  };
+
   const handleStartInterview = async () => {
+    // Show proctoring acknowledgement first
+    if (!hasAcknowledged) {
+      setShowProctoringAcknowledgement(true);
+      return;
+    }
+    
     try {
       await startConnection();
       toast.success('Voice interview started!');
@@ -279,6 +334,22 @@ export default function GenAIDeveloperInterview() {
           />
         </div>
       </div>
+      
+      {/* Proctoring Acknowledgement Dialog */}
+      <ProctoringAcknowledgementDialog
+        open={showProctoringAcknowledgement}
+        onAccept={handleAcceptProctoring}
+        onDecline={handleDeclineProctoring}
+      />
+
+      {/* Fullscreen Exit Warning */}
+      <FullscreenExitWarning
+        open={showExitWarning}
+        exitAttempts={exitAttempts}
+        maxAttempts={5}
+        onContinue={handleContinueInterview}
+        onEndInterview={handleFullscreenEndInterview}
+      />
       
       {/* Interview Completion Dialog */}
       <InterviewCompletionDialog 

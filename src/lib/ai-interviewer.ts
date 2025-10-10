@@ -1,4 +1,4 @@
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatGroq } from '@langchain/groq';
 import { PromptTemplate } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
@@ -10,12 +10,12 @@ import {
   generateFinalAnalysisFromEvaluations
 } from './question-client';
 
-// Initialize Gemini LLM
-const model = new ChatGoogleGenerativeAI({
-  model: 'gemini-2.0-flash',
+// Initialize Groq LLM for decision making (Fast & Free!)
+const model = new ChatGroq({
+  model: 'llama-3.1-8b-instant', // Fast Llama 3.1 model
+  apiKey: process.env.NEXT_PUBLIC_GROQ_API_KEY,
   temperature: 0.1,
-  maxOutputTokens: 500,
-  apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY,
+  maxTokens: 500,
 });
 
 export interface InterviewContext {
@@ -286,6 +286,8 @@ Respond ONLY in this JSON format:
     console.log('LLM decision result:', result);
     const cleaned = result.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(cleaned);
+    console.log('Cleaned decision result:', cleaned);
+    console.log('Parsed decision result:', parsed);
 
     return {
       shouldAskFollowUp: parsed.should_ask_followup === true,

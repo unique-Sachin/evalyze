@@ -34,7 +34,7 @@ import { getRoleConfig } from "@/src/config/roles";
 
 interface Message {
   id: string;
-  role: "INTERVIEWER" | "CANDIDATE";
+  role: "INTERVIEWER" | "CANDIDATE" | "AGENT" | "USER";
   content: string;
   timestamp: Date;
 }
@@ -177,6 +177,8 @@ export default function InterviewDetailPage() {
     return <Badge className={config.className}>{riskLevel.replace('_', ' ')}</Badge>;
   };
 
+  console.log(interview)
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
       <Navbar />
@@ -265,28 +267,32 @@ export default function InterviewDetailPage() {
                   <ScrollArea className="h-[600px] pr-4">
                     {interview.messages && interview.messages.length > 0 ? (
                       <div className="space-y-4">
-                        {interview.messages.map((message, index) => (
+                        {interview.messages.map((message, index) => {
+                          const isInterviewer = message.role === "INTERVIEWER" || message.role === "AGENT";
+                          const isCandidate = message.role === "CANDIDATE" || message.role === "USER";
+                          
+                          return (
                           <motion.div
                             key={message.id}
-                            initial={{ opacity: 0, x: message.role === "INTERVIEWER" ? -20 : 20 }}
+                            initial={{ opacity: 0, x: isInterviewer ? -20 : 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: index * 0.02 }}
-                            className={`flex gap-3 ${message.role === "CANDIDATE" ? "flex-row-reverse" : ""}`}
+                            className={`flex gap-3 ${isCandidate ? "flex-row-reverse" : ""}`}
                           >
                             <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
-                              message.role === "INTERVIEWER" 
+                              isInterviewer
                                 ? "bg-blue-100 dark:bg-blue-900" 
                                 : "bg-purple-100 dark:bg-purple-900"
                             }`}>
-                              {message.role === "INTERVIEWER" ? (
+                              {isInterviewer ? (
                                 <Bot className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                               ) : (
                                 <User className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                               )}
                             </div>
-                            <div className={`flex-1 ${message.role === "CANDIDATE" ? "text-right" : ""}`}>
+                            <div className={`flex-1 ${isCandidate ? "text-right" : ""}`}>
                               <div className={`inline-block max-w-[85%] rounded-lg p-3 ${
-                                message.role === "INTERVIEWER"
+                                isInterviewer
                                   ? "bg-gray-100 dark:bg-gray-800 text-left"
                                   : "bg-primary/10 text-left"
                               }`}>
@@ -300,7 +306,8 @@ export default function InterviewDetailPage() {
                               </div>
                             </div>
                           </motion.div>
-                        ))}
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center py-12 text-muted-foreground">

@@ -99,6 +99,7 @@ export function LiveTranscript({
     return colors[userColor as keyof typeof colors]?.[variant] || colors.purple[variant];
   };
 
+
   return (
     <Card className={cn("h-full flex flex-col", className)}>
       <div className="p-6 border-b">
