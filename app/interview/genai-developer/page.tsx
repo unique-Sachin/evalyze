@@ -92,6 +92,7 @@ export default function GenAIDeveloperInterview() {
   } = useFullscreenInterview({
     interviewId,
     isInterviewActive: isConnected,
+    maxExitAttempts: 2, // Match the UI warning display
     onForceExit: () => {
       stopConnection();
       setShowCompletion(true);
@@ -346,7 +347,7 @@ export default function GenAIDeveloperInterview() {
       <FullscreenExitWarning
         open={showExitWarning}
         exitAttempts={exitAttempts}
-        maxAttempts={5}
+        maxAttempts={2}
         onContinue={handleContinueInterview}
         onEndInterview={handleFullscreenEndInterview}
       />

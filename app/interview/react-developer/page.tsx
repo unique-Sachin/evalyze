@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useRef } from "react";
-import Script from "next/script";
-import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff, Bot } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Mic, MicOff, Volume2, VolumeX, Phone, PhoneOff, Bot, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,20 +15,19 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Whiteboard, type WhiteboardRef } from "./_components/Whiteboard";
 import { InterviewNavbar } from "../_components/InterviewNavbar";
 import { LiveTranscript } from "../_components/LiveTranscript";
 import { InterviewCompletionDialog } from "@/components/InterviewCompletionDialog";
 import { useDeepgramVoiceAgent, type InterviewAnalysis } from "@/src/hooks/useDeepgramVoiceAgent";
 import { ProctoringVideoPreview } from "@/components/ProctoringVideoPreview";
-import { ProctoringAcknowledgementDialog } from "@/components/ProctoringAcknowledgementDialog";
 import { FullscreenExitWarning } from "@/components/FullscreenExitWarning";
 import { useFullscreenInterview } from "@/src/hooks/useFullscreenInterview";
-import { useRouter } from "next/navigation";
+import CodeSandbox, { type CodeSandboxRef } from "@/components/CodeSandbox";
+import { ProctoringAcknowledgementDialog } from "@/components/ProctoringAcknowledgementDialog";
 
-export default function SystemDesignInterviewPage() {
+export default function ReactDeveloperInterviewPage() {
   const router = useRouter();
-  const whiteboardRef = useRef<WhiteboardRef>(null);
+  const codeSandboxRef = useRef<CodeSandboxRef>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [showCompletion, setShowCompletion] = useState(false);
@@ -46,13 +45,15 @@ export default function SystemDesignInterviewPage() {
     remainingTime,
     isTimeUp,
     interviewId,
+    currentQuestionRequiresCoding, // Track if current question is a coding question
     startConnection,
     stopConnection,
+    submitCodeAnswer, // Function to submit code
     proctoring
   } = useDeepgramVoiceAgent({
-    roleId: 'system-design',
-    interviewDuration: 45, // 45 minutes for system design
-    enableProctoring: true, // Enable video proctoring
+    roleId: 'react-developer',
+    interviewDuration: 60, // 60 minutes
+    enableProctoring: true,
     onStatusChange: (_status: string) => {
       console.log('Agent status changed:', _status);
     },
@@ -95,7 +96,7 @@ export default function SystemDesignInterviewPage() {
   } = useFullscreenInterview({
     interviewId,
     isInterviewActive: isConnected,
-    maxExitAttempts: 2, // Match the UI warning display
+    maxExitAttempts: 2,
     onForceExit: () => {
       stopConnection();
       setShowCompletion(true);
@@ -176,9 +177,23 @@ export default function SystemDesignInterviewPage() {
     toast.info(isSpeakerOn ? 'Speaker muted' : 'Speaker unmuted');
   };
 
-  const handleClearWhiteboard = () => {
-    whiteboardRef.current?.resetScene();
-    toast.success("Whiteboard cleared");
+  const handleSubmitCode = async () => {
+    if (!codeSandboxRef.current || !currentQuestionRequiresCoding) return;
+    
+    try {
+      const code = codeSandboxRef.current.getCode();
+      
+      if (!code.trim()) {
+        toast.error('Please write some code before submitting');
+        return;
+      }
+      
+      toast.success('Code submitted! Processing...');
+      await submitCodeAnswer(code);
+    } catch (error) {
+      console.error('Failed to submit code:', error);
+      toast.error('Failed to submit code. Please try again.');
+    }
   };
 
   const getStatusText = () => {
@@ -196,15 +211,10 @@ export default function SystemDesignInterviewPage() {
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
-      {/* Load Excalidraw environment variables */}
-      <Script id="load-env-variables" strategy="beforeInteractive">
-        {`window["EXCALIDRAW_ASSET_PATH"] = location.origin;`}
-      </Script>
-
       {/* Interview Navbar */}
       <InterviewNavbar
-        title="System Design Interview"
-        subtitle="Design and explain your solution"
+        title="React.js Developer Interview"
+        subtitle="Code and explain your solution"
         status={agentStatus}
         statusText={getStatusText()}
         showTimer={isConnected}
@@ -281,7 +291,7 @@ export default function SystemDesignInterviewPage() {
                   onClick={toggleMute}
                   variant={isMuted ? 'destructive' : 'outline'}
                   className="flex-1"
-                  disabled={!isConnected}
+                  disabled={!isConnected || currentQuestionRequiresCoding}
                   size="sm"
                 >
                   {isMuted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
@@ -297,23 +307,24 @@ export default function SystemDesignInterviewPage() {
                 </Button>
               </div>
 
-              <Button
-                onClick={handleClearWhiteboard}
-                variant="outline"
-                className="w-full"
-                size="sm"
-              >
-                Clear Whiteboard
-              </Button>
+              {/* Coding Question Indicator */}
+              {currentQuestionRequiresCoding && isConnected && (
+                <div className="flex items-center gap-2 text-xs bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md p-2">
+                  <span className="text-amber-600 dark:text-amber-400">💻</span>
+                  <span className="text-amber-700 dark:text-amber-300 font-medium">
+                    Voice disabled - Coding question active
+                  </span>
+                </div>
+              )}
 
               {/* Processing Indicator */}
               {isProcessing && (
                 <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground animate-pulse py-2">
                   <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }}></span>
                   <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                    <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                  </div>
-                )}
+                  <span className="h-2 w-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -323,11 +334,11 @@ export default function SystemDesignInterviewPage() {
               <div className="space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Duration:</span>
-                  <span className="font-semibold">45 minutes</span>
+                  <span className="font-semibold">60 minutes</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Focus:</span>
-                  <span className="font-semibold">System Design</span>
+                  <span className="font-semibold">React Development</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-muted-foreground">Messages:</span>
@@ -338,13 +349,59 @@ export default function SystemDesignInterviewPage() {
           </Card>
         </div>
 
-        {/* Middle: Whiteboard */}
-        <div className="flex-1 min-w-0">
-          <Card className="h-full overflow-hidden">
+        {/* Middle: CodeSandbox */}
+        <div className="flex-1 min-w-0 flex flex-col gap-3">
+          <Card className="flex-1 overflow-hidden relative">
             <div className="h-full w-full bg-card relative">
-              <Whiteboard ref={whiteboardRef} />
+              {/* Stable key prevents re-mounting on parent re-renders */}
+              <CodeSandbox key="react-code-editor" ref={codeSandboxRef} editorHeight={800} />
+              
+              {/* Disabled Overlay - Shows when interview not started or question is not coding */}
+              {(!isConnected || !currentQuestionRequiresCoding) && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+                     style={{ pointerEvents: 'all' }}>
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow-xl max-w-md text-center">
+                    <div className="mb-4">
+                      {!isConnected ? (
+                        <>
+                          <Phone className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Interview Not Started
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                            Start the interview to begin coding
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-12 w-12 mx-auto mb-3 text-blue-500" />
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                            Voice Question Active
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                            Please answer the current question verbally. The code editor will be enabled for coding questions.
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </Card>
+          
+          {/* Submit Code Button - Only visible for coding questions */}
+          {currentQuestionRequiresCoding && isConnected && (
+            <Button
+              onClick={handleSubmitCode}
+              disabled={isProcessing}
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
+              size="lg"
+            >
+              <Send className="mr-2 h-5 w-5" />
+              {isProcessing ? 'Submitting...' : 'Submit Code & Continue'}
+            </Button>
+          )}
         </div>
 
         {/* Right Side: Live Transcript */}
@@ -366,12 +423,13 @@ export default function SystemDesignInterviewPage() {
         </div>
       </div>
 
+     
       {/* Proctoring Acknowledgement Dialog */}
-      <ProctoringAcknowledgementDialog
+        <ProctoringAcknowledgementDialog
         open={showProctoringAcknowledgement}
         onAccept={handleAcceptProctoring}
         onDecline={handleDeclineProctoring}
-      />
+        />
 
       {/* Fullscreen Exit Warning */}
       <FullscreenExitWarning

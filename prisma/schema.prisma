@@ -271,15 +271,26 @@ model InterviewQuestion {
   id         String             @id @default(cuid())
   roleId     String
   question   String             @db.Text
-  answer     String?            @db.Text // Correct/Expected answer
-  category   String // 'Fundamentals', 'System Design', etc.
+  
+  // Answer can be either text or code
+  answer      String? @db.Text // For conversational questions
+  correctCode String? @db.Text // For coding challenges (model solution)
+  
+  // Question Type Configuration
+  requiresCoding Boolean @default(false) // TRUE = coding question, FALSE = conversational
+  codeLanguage   String? // Language for coding questions (e.g., 'javascript', 'typescript', 'python')
+  
+  category   String // 'Fundamentals', 'System Design', 'Coding Challenge', etc.
   difficulty QuestionDifficulty
   order      Int                @default(0) // Order in which questions appear
   isActive   Boolean            @default(true)
 
   // Metadata
-  expectedTopics String[] // Topics that should be covered in the answer
+  expectedTopics String[] // Topics/patterns that should be covered in the answer
   timeEstimate   Int?     @default(5) // Estimated time in minutes
+  
+  // Evaluation Criteria (for coding questions)
+  evaluationCriteria Json? // { mustHave: [...], shouldHave: [...], bonus: [...] }
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -292,6 +303,7 @@ model InterviewQuestion {
   @@index([category])
   @@index([difficulty])
   @@index([isActive])
+  @@index([requiresCoding])
   @@map("interview_questions")
 }
 
@@ -300,8 +312,13 @@ model QuestionFollowUp {
   id         String  @id @default(cuid())
   questionId String
   followUp   String  @db.Text // The follow-up question text
-  answer     String? @db.Text // Expected answer for the follow-up
-  order      Int     @default(0) // Order of follow-ups
+  
+  // Can be either conversational or coding follow-up
+  answer         String? @db.Text // For conversational follow-ups
+  correctCode    String? @db.Text // For coding follow-ups
+  requiresCoding Boolean @default(false)
+  
+  order Int @default(0) // Order of follow-ups
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -326,22 +343,31 @@ model AnswerEvaluation {
   questionId  String
   followUpId  String? // If this is a follow-up answer evaluation
 
-  // Answer details
-  candidateAnswer String  @db.Text
+  // Answer Type Flag
+  requiresCoding Boolean @default(false) // TRUE = code question, FALSE = conversational
+
+  // Conversational Answer (for non-coding questions)
+  candidateAnswer String? @db.Text
   expectedAnswer  String? @db.Text
-  isFollowUp      Boolean @default(false)
+  
+  // Code Answer (for coding questions)
+  candidateCode String? @db.Text // Candidate's submitted code
+  correctCode   String? @db.Text // Model/reference solution
+  codeLanguage  String? // 'javascript', 'typescript', 'python', etc.
+  
+  isFollowUp Boolean @default(false)
 
-  // Evaluation scores
+  // Evaluation scores (same for both types)
   score        Float // Score out of 10
-  relevance    Float // How relevant is the answer
-  accuracy     Float // How accurate is the answer
-  completeness Float // How complete is the answer
+  relevance    Float // How relevant is the answer/code
+  accuracy     Float // How accurate is the answer/code
+  completeness Float // How complete is the answer/code
 
-  // AI Feedback
+  // AI Feedback (same for both types)
   feedback      String   @db.Text
   strengths     String[] // What was good
   improvements  String[] // What could be improved
-  missingTopics String[] // Expected topics that were not covered
+  missingTopics String[] // Expected topics/patterns that were not covered
 
   // Timestamps
   answeredAt  DateTime @default(now())
@@ -352,5 +378,6 @@ model AnswerEvaluation {
 
   @@index([interviewId])
   @@index([questionId])
+  @@index([requiresCoding])
   @@map("answer_evaluations")
 }

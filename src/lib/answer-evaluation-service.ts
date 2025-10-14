@@ -24,17 +24,10 @@ export interface AnswerEvaluationResult {
 }
 
 /**
- * Evaluate a candidate's answer against the expected answer
+ * Get prompt template for text/conversational answer evaluation
  */
-export async function evaluateAnswer(
-  candidateAnswer: string,
-  expectedAnswer: string | null,
-  questionText: string,
-  expectedTopics: string[],
-  isFollowUp: boolean = false
-): Promise<AnswerEvaluationResult> {
-  try {
-    const prompt = PromptTemplate.fromTemplate(`You are an expert technical interviewer evaluating a candidate's answer.
+function getTextEvaluationPrompt(): string {
+  return `You are an expert technical interviewer evaluating a candidate's answer.
 
 QUESTION: {question}
 
@@ -68,8 +61,89 @@ Respond in this EXACT JSON format:
   "strengths": ["strength 1", "strength 2"],
   "improvements": ["improvement 1", "improvement 2"],
   "missing_topics": ["topic 1", "topic 2"]
-}}
-`);
+}}`;
+}
+
+/**
+ * Get prompt template for code evaluation
+ */
+function getCodeEvaluationPrompt(): string {
+  return `You are an expert code reviewer evaluating a candidate's coding challenge submission.
+
+CODING CHALLENGE: {question}
+
+LANGUAGE: {language}
+
+MODEL SOLUTION (Reference):
+{modelSolution}
+
+CANDIDATE'S CODE:
+{candidateCode}
+
+EVALUATION CRITERIA:
+- Must Have: {mustHave}
+- Should Have: {shouldHave}
+- Bonus Points: {bonus}
+
+IS FOLLOW-UP QUESTION: {isFollowUp}
+
+Evaluate the candidate's code based on:
+1. RELEVANCE (1-10): Does the code solve the given challenge?
+2. ACCURACY (1-10): Code quality, best practices, and correctness
+3. COMPLETENESS (1-10): Are all requirements met? Edge cases handled?
+4. OVERALL SCORE (1-10): Weighted average of the above
+
+Focus on:
+- Functionality: Does the code work as expected?
+- Code Quality: Clean, readable, maintainable
+- Best Practices: Proper patterns, hooks usage, structure
+- Error Handling: Edge cases and validation
+- Performance: Efficient algorithms and patterns
+
+Also provide:
+- Brief constructive feedback (2-3 sentences)
+- 2-3 strengths (what they did well)
+- 1-2 improvements (what they could improve)
+- Missing topics/patterns (from criteria that weren't implemented)
+
+Respond in this EXACT JSON format:
+{{
+  "relevance": [score 1-10],
+  "accuracy": [score 1-10],
+  "completeness": [score 1-10],
+  "score": [overall score 1-10],
+  "feedback": "[constructive feedback]",
+  "strengths": ["strength 1", "strength 2"],
+  "improvements": ["improvement 1", "improvement 2"],
+  "missing_topics": ["missing pattern 1", "missing pattern 2"]
+}}`;
+}
+
+
+/**
+ * Evaluate a candidate's answer (text) or code against the expected answer/solution
+ */
+export async function evaluateAnswer(
+  candidateAnswer: string,
+  expectedAnswer: string | null,
+  questionText: string,
+  expectedTopics: string[],
+  isFollowUp: boolean = false,
+  requiresCoding: boolean = false,
+  codeLanguage?: string,
+  evaluationCriteria?: {
+    mustHave?: string[];
+    shouldHave?: string[];
+    bonus?: string[];
+  }
+): Promise<AnswerEvaluationResult> {
+  try {
+    // Choose prompt template based on whether it's a coding question
+    const promptTemplate = requiresCoding 
+      ? getCodeEvaluationPrompt()
+      : getTextEvaluationPrompt();
+    
+    const prompt = PromptTemplate.fromTemplate(promptTemplate);
 
     const chain = RunnableSequence.from([
       prompt,
@@ -77,13 +151,26 @@ Respond in this EXACT JSON format:
       new StringOutputParser(),
     ]);
 
-    const result = await chain.invoke({
-      question: questionText,
-      expectedAnswer: expectedAnswer || 'No specific expected answer provided. Evaluate based on technical accuracy and depth.',
-      expectedTopics: expectedTopics.join(', ') || 'General technical knowledge',
-      candidateAnswer,
-      isFollowUp: isFollowUp ? 'Yes' : 'No'
-    });
+    const result = await chain.invoke(
+      requiresCoding 
+        ? {
+            question: questionText,
+            modelSolution: expectedAnswer || 'No model solution provided.',
+            candidateCode: candidateAnswer,
+            language: codeLanguage || 'javascript',
+            mustHave: evaluationCriteria?.mustHave?.join(', ') || 'Basic functionality',
+            shouldHave: evaluationCriteria?.shouldHave?.join(', ') || 'Good code structure',
+            bonus: evaluationCriteria?.bonus?.join(', ') || 'Advanced features',
+            isFollowUp: isFollowUp ? 'Yes' : 'No'
+          }
+        : {
+            question: questionText,
+            expectedAnswer: expectedAnswer || 'No specific expected answer provided. Evaluate based on technical accuracy and depth.',
+            expectedTopics: expectedTopics.join(', ') || 'General technical knowledge',
+            candidateAnswer,
+            isFollowUp: isFollowUp ? 'Yes' : 'No'
+          }
+    );
 
 
 
@@ -119,26 +206,40 @@ export async function storeAnswerEvaluation(
   expectedAnswer: string | null,
   evaluation: AnswerEvaluationResult,
   isFollowUp: boolean = false,
-  followUpId?: string
+  followUpId?: string,
+  requiresCoding: boolean = false,
+  codeLanguage?: string
 ) {
   try {
-    return await prisma.answerEvaluation.create({
-      data: {
-        interviewId,
-        questionId,
-        followUpId,
-        candidateAnswer,
-        expectedAnswer,
-        isFollowUp,
-        score: evaluation.score,
-        relevance: evaluation.relevance,
-        accuracy: evaluation.accuracy,
-        completeness: evaluation.completeness,
-        feedback: evaluation.feedback,
-        strengths: evaluation.strengths,
-        improvements: evaluation.improvements,
-        missingTopics: evaluation.missingTopics,
-      },
+    // Build data object conditionally based on question type
+    const data: Record<string, unknown> = {
+      interviewId,
+      questionId,
+      followUpId,
+      requiresCoding,
+      isFollowUp,
+      score: evaluation.score,
+      relevance: evaluation.relevance,
+      accuracy: evaluation.accuracy,
+      completeness: evaluation.completeness,
+      feedback: evaluation.feedback,
+      strengths: evaluation.strengths,
+      improvements: evaluation.improvements,
+      missingTopics: evaluation.missingTopics,
+    };
+
+    // For coding questions, store in candidateCode; for text, in candidateAnswer
+    if (requiresCoding) {
+      data.candidateCode = candidateAnswer;
+      data.correctCode = expectedAnswer;
+      data.codeLanguage = codeLanguage || 'javascript';
+    } else {
+      data.candidateAnswer = candidateAnswer;
+      data.expectedAnswer = expectedAnswer;
+    }
+
+    return await prisma.answerEvaluation.create({ 
+      data: data as Parameters<typeof prisma.answerEvaluation.create>[0]['data']
     });
   } catch (error) {
     console.error('Failed to store answer evaluation:', error);

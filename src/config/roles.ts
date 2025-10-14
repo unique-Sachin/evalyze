@@ -1,4 +1,4 @@
-import { Briefcase, Sparkles } from "lucide-react";
+import { Briefcase, Sparkles, Code } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface RoleConfig {
@@ -43,6 +43,20 @@ export const INTERVIEW_ROLES: Record<string, RoleConfig> = {
     color: "text-purple-500",
     bgColor: "bg-purple-500/10",
     borderColor: "border-purple-500/20"
+  }
+  ,
+  "react-developer": {
+    id: "react-developer",
+    title: "React.js Developer",
+  icon: Code,
+    description: "Live React coding interview with a built-in code sandbox. Test your skills in real time.",
+    defaultTopic: "Build a counter component with increment/decrement buttons.",
+    duration: "30-45 min",
+    difficulty: "Intermediate",
+    topics: ["React", "Hooks", "Components", "JSX", "State Management"],
+    color: "text-cyan-500",
+    bgColor: "bg-cyan-500/10",
+    borderColor: "border-cyan-500/20"
   }
   // Add more roles here in the future:
   // "backend-engineer": { ... },

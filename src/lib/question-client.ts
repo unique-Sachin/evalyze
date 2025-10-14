@@ -11,6 +11,10 @@ export interface QuestionWithFollowUps {
   difficulty: string;
   expectedTopics: string[];
   timeEstimate: number | null;
+  requiresCoding: boolean; // TRUE = coding question, FALSE = conversational
+  codeLanguage: string | null; // e.g., 'javascript', 'typescript', 'python'
+  correctCode: string | null; // Model solution for coding questions
+  evaluationCriteria: string | null; // Criteria for code evaluation
   followUps: {
     id: string;
     followUp: string;

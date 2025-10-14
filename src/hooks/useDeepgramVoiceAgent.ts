@@ -48,6 +48,7 @@ export function useDeepgramVoiceAgent({
   const [isProcessing, setIsProcessing] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState<string>(''); // Real-time interim text
   const [isInterimFinal, setIsInterimFinal] = useState(false); // Whether interim should show as final
+  const [currentQuestionRequiresCoding, setCurrentQuestionRequiresCoding] = useState(false); // Track if current question is coding
   
   // Timer state
   const [remainingTime, setRemainingTime] = useState(interviewDuration * 60); // in seconds
@@ -90,6 +91,9 @@ export function useDeepgramVoiceAgent({
   
   // Track whether we should send audio to Deepgram (only when AI is listening)
   const shouldSendAudioRef = useRef<boolean>(false);
+  
+  // Track if current question requires coding (ref for updateStatus closure)
+  const currentQuestionRequiresCodingRef = useRef<boolean>(false);
 
   // Proctoring refs
   const proctoringSessionIdRef = useRef<string | null>(null);
@@ -201,15 +205,17 @@ export function useDeepgramVoiceAgent({
     setAgentStatus(status);
     onStatusChange?.(status);
     
-    // Only allow audio sending when status is 'listening'
-    // This prevents user from interrupting AI while it's thinking or speaking
-    shouldSendAudioRef.current = status === 'listening';
+    // Only allow audio sending when status is 'listening' AND the current question doesn't require coding
+    // This prevents user from interrupting AI while it's thinking or speaking,
+    // and also disables microphone for coding questions
+    const canListen = status === 'listening' && !currentQuestionRequiresCodingRef.current;
+    shouldSendAudioRef.current = canListen;
     
     // Update the AudioWorklet processor
     if (audioWorkletNodeRef.current) {
       audioWorkletNodeRef.current.port.postMessage({
         type: 'setShouldSend',
-        value: status === 'listening'
+        value: canListen
       });
     }
   };
@@ -266,12 +272,28 @@ export function useDeepgramVoiceAgent({
         userMessage
       );
 
-      // Update context
+      // Update context and check if question requires coding
       if (response.questionId) {
         if (!response.isFollowUp) {
           interviewContextRef.current.askedQuestionIds.push(response.questionId);
         }
         interviewContextRef.current.currentQuestionId = response.questionId;
+        
+        // Fetch question details to check if it requires coding
+        try {
+          const { getQuestionById } = await import('@/src/lib/question-client');
+          const questionDetails = await getQuestionById(response.questionId);
+          if (questionDetails) {
+            const requiresCoding = questionDetails.requiresCoding || false;
+            setCurrentQuestionRequiresCoding(requiresCoding);
+            currentQuestionRequiresCodingRef.current = requiresCoding; // Update ref for updateStatus closure
+            console.log('📝 Question requires coding:', requiresCoding);
+          }
+        } catch (error) {
+          console.error('Failed to fetch question details:', error);
+          setCurrentQuestionRequiresCoding(false);
+          currentQuestionRequiresCodingRef.current = false;
+        }
       }
 
       // Add to transcript
@@ -308,6 +330,30 @@ export function useDeepgramVoiceAgent({
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  /**
+   * Submit code answer for a coding question
+   * This is called when the user clicks "Submit Code" button
+   */
+  const submitCodeAnswer = async (code: string) => {
+    if (isProcessing || !currentQuestionRequiresCoding) return;
+    
+    console.log('📝 Submitting code answer:', code.substring(0, 100) + '...');
+    
+    // Add user's code to transcript
+    const userMessage: TranscriptMessage = {
+      role: 'user',
+      content: `[Code submitted]\n\`\`\`javascript\n${code}\n\`\`\``,
+      timestamp: new Date()
+    };
+    addTranscriptMessage(userMessage);
+
+    // Add to user responses
+    interviewContextRef.current.userResponses.push(code);
+
+    // Generate and speak next question/feedback
+    await generateAndSpeakResponse(code);
   };
 
   /**
@@ -703,6 +749,24 @@ export function useDeepgramVoiceAgent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Update audio sending when coding status changes
+  useEffect(() => {
+    if (isConnected && agentStatus === 'listening') {
+      const canListen = !currentQuestionRequiresCoding;
+      shouldSendAudioRef.current = canListen;
+      
+      // Update the AudioWorklet processor
+      if (audioWorkletNodeRef.current) {
+        audioWorkletNodeRef.current.port.postMessage({
+          type: 'setShouldSend',
+          value: canListen
+        });
+      }
+      
+      console.log('🎤 Microphone', canListen ? 'enabled' : 'disabled', 'for', currentQuestionRequiresCoding ? 'coding' : 'conversation', 'question');
+    }
+  }, [currentQuestionRequiresCoding, isConnected, agentStatus]);
+
   return {
     isConnected,
     agentStatus,
@@ -713,8 +777,10 @@ export function useDeepgramVoiceAgent({
     remainingTime,
     isTimeUp,
     interviewId,
+    currentQuestionRequiresCoding, // Expose coding question status
     startConnection,
     stopConnection,
+    submitCodeAnswer, // Allow manual code submission
     clearTranscript,
     proctoring: {
       isActive: proctoring.isActive,
