@@ -258,7 +258,7 @@ EVALUATION SCORE: {score}/10
 DECISION CRITERIA:
 - Ask follow-up ONLY if the score is below 6/10 AND we haven't asked a follow-up yet
 - If score >= 6, move on to next question
-- Currently at {followUpCount} follow-ups (max 1 allowed)
+- Currently at {followUpCount} follow-ups (max 2 allowed)
 
 IMPORTANT FOR ACKNOWLEDGMENT:
 - Keep it brief, natural, and encouraging (max 5-7 words)
