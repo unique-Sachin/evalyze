@@ -211,33 +211,52 @@ export async function storeAnswerEvaluation(
   codeLanguage?: string
 ) {
   try {
-    // Build data object with all fields, using null for unused ones
-    // This satisfies TypeScript while keeping data clean
-    const data = {
-      interviewId,
-      questionId,
-      ...(followUpId && { followUpId }),
-      requiresCoding,
-      isFollowUp,
-      score: evaluation.score,
-      relevance: evaluation.relevance,
-      accuracy: evaluation.accuracy,
-      completeness: evaluation.completeness,
-      feedback: evaluation.feedback,
-      strengths: evaluation.strengths,
-      improvements: evaluation.improvements,
-      missingTopics: evaluation.missingTopics,
-      // For coding questions, store in candidateCode; for text, in candidateAnswer
-      candidateAnswer: requiresCoding ? null : candidateAnswer,
-      expectedAnswer: requiresCoding ? null : (expectedAnswer || null),
-      candidateCode: requiresCoding ? candidateAnswer : null,
-      correctCode: requiresCoding ? expectedAnswer : null,
-      codeLanguage: requiresCoding ? (codeLanguage || 'javascript') : null,
-    };
-
-    return await prisma.answerEvaluation.create({ 
-      data
-    });
+    // Build data object based on question type
+    // Split into two separate objects to avoid TypeScript union type issues
+    if (requiresCoding) {
+      // For coding questions
+      return await prisma.answerEvaluation.create({
+        data: {
+          interviewId,
+          questionId,
+          ...(followUpId && { followUpId }),
+          requiresCoding: true,
+          isFollowUp,
+          score: evaluation.score,
+          relevance: evaluation.relevance,
+          accuracy: evaluation.accuracy,
+          completeness: evaluation.completeness,
+          feedback: evaluation.feedback,
+          strengths: evaluation.strengths,
+          improvements: evaluation.improvements,
+          missingTopics: evaluation.missingTopics,
+          candidateCode: candidateAnswer,
+          correctCode: expectedAnswer,
+          codeLanguage: codeLanguage || 'javascript',
+        }
+      });
+    } else {
+      // For text/conversational questions
+      return await prisma.answerEvaluation.create({
+        data: {
+          interviewId,
+          questionId,
+          ...(followUpId && { followUpId }),
+          requiresCoding: false,
+          isFollowUp,
+          score: evaluation.score,
+          relevance: evaluation.relevance,
+          accuracy: evaluation.accuracy,
+          completeness: evaluation.completeness,
+          feedback: evaluation.feedback,
+          strengths: evaluation.strengths,
+          improvements: evaluation.improvements,
+          missingTopics: evaluation.missingTopics,
+          candidateAnswer: candidateAnswer,
+          expectedAnswer: expectedAnswer,
+        }
+      });
+    }
   } catch (error) {
     console.error('Failed to store answer evaluation:', error);
     console.error('Error details:', error);
