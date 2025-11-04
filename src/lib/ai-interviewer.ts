@@ -102,10 +102,14 @@ export async function generateInterviewerResponse(
         context.interviewId,
         context.currentQuestionId,
         latestUserResponse,
-        currentQuestion.answer,
+        currentQuestion.requiresCoding ? currentQuestion.correctCode : currentQuestion.answer,
         currentQuestion.question,
         currentQuestion.expectedTopics,
-        context.followUpCount ? context.followUpCount > 0 : false
+        context.followUpCount ? context.followUpCount > 0 : false,
+        undefined, // followUpId
+        currentQuestion.requiresCoding || false,
+        currentQuestion.codeLanguage || undefined,
+        currentQuestion.evaluationCriteria ? JSON.parse(currentQuestion.evaluationCriteria) : undefined
       );
 
       if (!evaluation) {

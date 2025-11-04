@@ -29,7 +29,10 @@ export async function POST(request: NextRequest) {
       questionText,
       expectedTopics,
       isFollowUp,
-      followUpId
+      followUpId,
+      requiresCoding,
+      codeLanguage,
+      evaluationCriteria
     } = body;
 
     // Generate final analysis from stored evaluations
@@ -53,16 +56,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Evaluate the answer
+    // Evaluate the answer (handles both text and code)
     const evaluation = await evaluateAnswer(
       candidateAnswer,
       expectedAnswer || null,
       questionText,
       expectedTopics || [],
-      isFollowUp || false
+      isFollowUp || false,
+      requiresCoding || false,
+      codeLanguage,
+      evaluationCriteria
     );
 
-    // Store the evaluation
+    // Store the evaluation (handles both text and code)
     await storeAnswerEvaluation(
       interviewId,
       questionId,
@@ -70,7 +76,9 @@ export async function POST(request: NextRequest) {
       expectedAnswer || null,
       evaluation,
       isFollowUp || false,
-      followUpId
+      followUpId,
+      requiresCoding || false,
+      codeLanguage
     );
 
     return NextResponse.json(evaluation);

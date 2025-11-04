@@ -206,16 +206,18 @@ export async function storeAnswerEvaluation(
   expectedAnswer: string | null,
   evaluation: AnswerEvaluationResult,
   isFollowUp: boolean = false,
-  followUpId?: string
+  followUpId?: string,
+  requiresCoding: boolean = false,
+  codeLanguage?: string
 ) {
   try {
-    // Build data object - only include fields that exist in the current schema
-    // Removed requiresCoding, codeLanguage, candidateCode, correctCode for backward compatibility
-    // These can be re-added after running migration on production database
+    // Build data object with all fields, using null for unused ones
+    // This satisfies TypeScript while keeping data clean
     const data = {
       interviewId,
       questionId,
       ...(followUpId && { followUpId }),
+      requiresCoding,
       isFollowUp,
       score: evaluation.score,
       relevance: evaluation.relevance,
@@ -225,8 +227,12 @@ export async function storeAnswerEvaluation(
       strengths: evaluation.strengths,
       improvements: evaluation.improvements,
       missingTopics: evaluation.missingTopics,
-      candidateAnswer: candidateAnswer,
-      expectedAnswer: expectedAnswer || null,
+      // For coding questions, store in candidateCode; for text, in candidateAnswer
+      candidateAnswer: requiresCoding ? null : candidateAnswer,
+      expectedAnswer: requiresCoding ? null : (expectedAnswer || null),
+      candidateCode: requiresCoding ? candidateAnswer : null,
+      correctCode: requiresCoding ? expectedAnswer : null,
+      codeLanguage: requiresCoding ? (codeLanguage || 'javascript') : null,
     };
 
     return await prisma.answerEvaluation.create({ 

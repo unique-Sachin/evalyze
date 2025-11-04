@@ -96,7 +96,7 @@ export async function getInterviewGreeting(roleId: string): Promise<string> {
 }
 
 /**
- * Evaluate and store an answer
+ * Evaluate and store an answer (handles both text and code)
  */
 export async function evaluateAndStoreAnswer(
   interviewId: string,
@@ -106,7 +106,14 @@ export async function evaluateAndStoreAnswer(
   questionText: string,
   expectedTopics: string[],
   isFollowUp: boolean = false,
-  followUpId?: string
+  followUpId?: string,
+  requiresCoding?: boolean,
+  codeLanguage?: string,
+  evaluationCriteria?: {
+    mustHave?: string[];
+    shouldHave?: string[];
+    bonus?: string[];
+  }
 ): Promise<AnswerEvaluationResult | null> {
   try {
     const response = await fetch('/api/evaluations', {
@@ -120,7 +127,10 @@ export async function evaluateAndStoreAnswer(
         questionText,
         expectedTopics,
         isFollowUp,
-        followUpId
+        followUpId,
+        requiresCoding,
+        codeLanguage,
+        evaluationCriteria
       })
     });
     
