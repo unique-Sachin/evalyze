@@ -206,17 +206,16 @@ export async function storeAnswerEvaluation(
   expectedAnswer: string | null,
   evaluation: AnswerEvaluationResult,
   isFollowUp: boolean = false,
-  followUpId?: string,
-  requiresCoding: boolean = false,
-  codeLanguage?: string
+  followUpId?: string
 ) {
   try {
-    // Build data object conditionally based on question type
-    const data: Record<string, unknown> = {
+    // Build data object - only include fields that exist in the current schema
+    // Removed requiresCoding, codeLanguage, candidateCode, correctCode for backward compatibility
+    // These can be re-added after running migration on production database
+    const data = {
       interviewId,
       questionId,
-      followUpId,
-      requiresCoding,
+      ...(followUpId && { followUpId }),
       isFollowUp,
       score: evaluation.score,
       relevance: evaluation.relevance,
@@ -226,23 +225,16 @@ export async function storeAnswerEvaluation(
       strengths: evaluation.strengths,
       improvements: evaluation.improvements,
       missingTopics: evaluation.missingTopics,
+      candidateAnswer: candidateAnswer,
+      expectedAnswer: expectedAnswer || null,
     };
 
-    // For coding questions, store in candidateCode; for text, in candidateAnswer
-    if (requiresCoding) {
-      data.candidateCode = candidateAnswer;
-      data.correctCode = expectedAnswer;
-      data.codeLanguage = codeLanguage || 'javascript';
-    } else {
-      data.candidateAnswer = candidateAnswer;
-      data.expectedAnswer = expectedAnswer;
-    }
-
     return await prisma.answerEvaluation.create({ 
-      data: data as Parameters<typeof prisma.answerEvaluation.create>[0]['data']
+      data
     });
   } catch (error) {
     console.error('Failed to store answer evaluation:', error);
+    console.error('Error details:', error);
     throw error; // Re-throw to let caller handle it
   }
 }
