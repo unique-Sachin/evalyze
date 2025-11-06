@@ -105,19 +105,39 @@ export default function MarketingHome() {
                         ))}
                       </div>
 
-                      <Button 
-                        asChild 
-                        className="w-full mt-4"
-                        size="lg"
-                      >
-                        <Link 
-                          href={`/interview/${position.id}`}
-                          className="flex items-center justify-center gap-2"
+                      <div className="flex gap-2 mt-4">
+                        <Button 
+                          asChild 
+                          className="flex-1"
+                          size="lg"
                         >
-                          Start Interview
-                          <ArrowRight className="h-4 w-4" />
-                        </Link>
-                      </Button>
+                          <Link 
+                            href={`/interview/${position.id}`}
+                            className="flex items-center justify-center gap-2"
+                          >
+                            Quick Practice
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                        <Button 
+                          asChild 
+                          variant="outline"
+                          className="flex-1 group relative overflow-hidden"
+                          size="lg"
+                        >
+                          <Link 
+                            href={`/interview/agent/setup?role=${position.id}`}
+                            className="flex items-center justify-center gap-2"
+                          >
+                            <span className="relative z-10 flex items-center gap-2">
+                              <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-semibold">
+                                AI Agent
+                              </span>
+                              <span className="text-purple-600">✨</span>
+                            </span>
+                          </Link>
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 </motion.div>

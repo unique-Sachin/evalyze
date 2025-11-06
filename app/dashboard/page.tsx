@@ -295,7 +295,20 @@ export default function DashboardPage() {
                 <Button asChild className="w-full" size="lg">
                   <Link href="/#positions">
                     <Activity className="mr-2 h-4 w-4" />
-                    New Interview
+                    Quick Practice
+                  </Link>
+                </Button>
+                <Button 
+                  asChild 
+                  variant="outline" 
+                  className="w-full relative overflow-hidden border-purple-500/20 hover:bg-purple-500/10" 
+                  size="lg"
+                >
+                  <Link href="/interview/agent/setup">
+                    <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-semibold">
+                      AI Agent Interview
+                    </span>
+                    <span className="ml-2">✨</span>
                   </Link>
                 </Button>
                 <Button asChild variant="outline" className="w-full" size="lg">

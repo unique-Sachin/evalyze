@@ -13,7 +13,8 @@ import {
   Loader2,
   ArrowLeft,
   TrendingUp,
-  MessageSquare
+  MessageSquare,
+  Sparkles
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,19 +25,32 @@ import Navbar from "@/components/navbar";
 import Footer from "@/components/footer";
 import { getRoleConfig, getAllRoles } from "@/src/config/roles";
 
-interface Interview {
+interface BaseInterview {
   id: string;
   roleId: string;
   status: string;
   startedAt: string;
   completedAt: string | null;
-  durationMinutes: number | null;
   overallScore: number | null;
   totalQuestions: number;
   _count: {
     messages: number;
   };
 }
+
+interface RegularInterview extends BaseInterview {
+  type: "regular";
+  durationMinutes: number | null;
+}
+
+interface AgentInterview extends BaseInterview {
+  type: "agent";
+  durationMinutes: null;
+  technicalScore: number | null;
+  recommendation: string | null;
+}
+
+type Interview = RegularInterview | AgentInterview;
 
 export default function HistoryPage() {
   const { status } = useSession();
@@ -66,7 +80,7 @@ export default function HistoryPage() {
 
   const fetchInterviews = async () => {
     try {
-      const response = await fetch("/api/interviews");
+      const response = await fetch("/api/interviews/all");
       if (response.ok) {
         const data = await response.json();
         setInterviews(data);
@@ -254,14 +268,26 @@ export default function HistoryPage() {
                         {/* Left side - Role info */}
                         <div className="flex items-start gap-4">
                           {Icon && (
-                            <div className={`p-3 rounded-lg ${roleConfig.bgColor} flex-shrink-0`}>
+                            <div className={`p-3 rounded-lg ${roleConfig.bgColor} flex-shrink-0 relative`}>
                               <Icon className={`h-6 w-6 ${roleConfig.color}`} />
+                              {interview.type === "agent" && (
+                                <div className="absolute -top-1 -right-1 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full p-1">
+                                  <Sparkles className="h-3 w-3 text-white" />
+                                </div>
+                              )}
                             </div>
                           )}
                           <div className="flex-1">
-                            <h3 className="font-semibold text-lg mb-1">
-                              {roleConfig?.title || interview.roleId}
-                            </h3>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h3 className="font-semibold text-lg">
+                                {roleConfig?.title || interview.roleId}
+                              </h3>
+                              {interview.type === "agent" && (
+                                <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
+                                  AI Agent
+                                </Badge>
+                              )}
+                            </div>
                             <div className="flex flex-wrap gap-3 text-sm text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
@@ -271,7 +297,7 @@ export default function HistoryPage() {
                                   year: 'numeric'
                                 })}
                               </div>
-                              {interview.durationMinutes && (
+                              {interview.type === "regular" && interview.durationMinutes && (
                                 <div className="flex items-center gap-1">
                                   <Clock className="h-3 w-3" />
                                   {interview.durationMinutes} min
@@ -279,7 +305,7 @@ export default function HistoryPage() {
                               )}
                               <div className="flex items-center gap-1">
                                 <MessageSquare className="h-3 w-3" />
-                                {interview._count.messages} messages
+                                {interview._count.messages} {interview.type === "agent" ? "questions" : "messages"}
                               </div>
                             </div>
                           </div>
@@ -292,7 +318,7 @@ export default function HistoryPage() {
                               <div className="text-center">
                                 <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
                                   <TrendingUp className="h-3 w-3" />
-                                  Score
+                                  {interview.type === "agent" ? "Avg Score" : "Score"}
                                 </div>
                                 <Badge variant="secondary" className="font-mono text-lg">
                                   {interview.overallScore.toFixed(1)}/10
@@ -302,7 +328,13 @@ export default function HistoryPage() {
                             <div className="flex flex-col items-end gap-2">
                               {getStatusBadge(interview.status)}
                               <Button variant="outline" size="sm" asChild>
-                                <Link href={`/interview/${interview.id}`}>
+                                <Link 
+                                  href={
+                                    interview.type === "agent"
+                                      ? `/interview/agent/${interview.id}/results`
+                                      : `/interview/${interview.id}`
+                                  }
+                                >
                                   View Details
                                 </Link>
                               </Button>
